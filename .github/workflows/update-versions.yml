@@ -1,0 +1,120 @@
+# © 2025 D MALAM
+name: Update FFmpeg Versions
+
+on:
+  schedule:
+    # Run daily at 00:00 UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    inputs:
+      force_update:
+        description: 'Force update even if versions match'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-and-update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for version updates
+        id: check_versions
+        run: |
+          # Run update script
+          scripts/update_formulas.sh
+          
+          # Check if any files changed
+          if git diff --quiet; then
+            echo "updated=false" >> $GITHUB_OUTPUT
+          else
+            echo "updated=true" >> $GITHUB_OUTPUT
+            # Extract versions from formulas
+            stable_version=$(grep 'version "' Formula/ffmpeg-static.rb | sed 's/.*version "\([^"]*\)".*/\1/')
+            snapshot_version=$(grep 'version "' Formula/ffmpeg-static-snapshot.rb | sed 's/.*version "\([^"]*\)".*/\1/')
+            echo "stable_version=$stable_version" >> $GITHUB_OUTPUT
+            echo "snapshot_version=$snapshot_version" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.check_versions.outputs.updated == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            Update FFmpeg versions
+
+            - Stable: ${{ steps.check_versions.outputs.stable_version }}
+            - Snapshot: ${{ steps.check_versions.outputs.snapshot_version }}
+          title: 'Update FFmpeg versions'
+          body: |
+            ## Automated Version Update
+
+            This PR updates the FFmpeg formulas to the latest versions available from https://ffmpeg.martin-riedl.de/
+
+            ### Version Changes:
+            - **Stable Release**: ${{ steps.check_versions.outputs.stable_version }}
+            - **Snapshot Build**: ${{ steps.check_versions.outputs.snapshot_version }}
+
+            ### What's Changed:
+            - Updated version strings in formula files
+            - Updated SHA256 checksums for all platforms
+            - Verified download URLs are working
+
+            ### Platforms Updated:
+            - macOS ARM64 (Apple Silicon)
+            - macOS x86_64 (Intel)
+            - Linux ARM64
+            - Linux x86_64
+
+            ---
+            *This is an automated pull request created by the version update workflow.*
+          branch: update-ffmpeg-versions-${{ github.run_number }}
+          delete-branch: true
+          labels: |
+            automated
+            version-update
+
+      - name: Enable auto-merge
+        if: steps.check_versions.outputs.updated == 'true'
+        run: |
+          gh pr merge --auto --squash "${{ steps.create-pr.outputs.pull-request-number }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test-formulas:
+    needs: check-and-update
+    if: needs.check-and-update.outputs.updated == 'true'
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        formula: [ffmpeg-static, ffmpeg-static-snapshot]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: update-ffmpeg-versions-${{ github.run_number }}
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Test formula installation
+        run: |
+          # Add the tap locally
+          brew tap-new --no-git dmmalam/ffmpeg-static
+          cp -r Formula/* $(brew --repository)/Library/Taps/dmmalam/homebrew-ffmpeg-static/Formula/
+          
+          # Test installation
+          brew install --verbose dmmalam/ffmpeg-static/${{ matrix.formula }}
+          
+          # Test the binary
+          brew test dmmalam/ffmpeg-static/${{ matrix.formula }}
