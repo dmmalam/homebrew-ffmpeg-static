@@ -1,254 +1,192 @@
 #!/bin/sh
 # © 2025 D MALAM
-# Update FFmpeg formulas by parsing website HTML
-
 set -e
 
-# Use gsed on macOS, sed elsewhere
-if [ "$(uname)" = "Darwin" ]; then
-    SED="gsed"
-else
-    SED="sed"
-fi
-
-# Base URL
 BASE_URL="https://ffmpeg.martin-riedl.de"
+
+# Portable sed in-place editing
+sed_inplace() {
+    if [ "$(uname)" = "Darwin" ]; then
+        sed -i '' "$@"
+    else
+        sed -i "$@"
+    fi
+}
+
+# Error handler
+die() {
+    echo "ERROR: $1" >&2
+    exit 1
+}
 
 # Fetch HTML once
 echo "Fetching website HTML..."
-html=$(curl -s "$BASE_URL")
+html=$(curl -s "$BASE_URL") || die "Failed to fetch website"
 
 # Extract versions
 echo "Extracting versions..."
-snapshot_version=$(echo "$html" | $SED -n '/<h2>Download Snapshot Build<\/h2>/,/<h2>Download Release Build<\/h2>/p' | grep -m1 "Release:" | $SED 's/.*<b>Release: <\/b>\([^<]*\).*/\1/')
-release_version=$(echo "$html" | $SED -n '/<h2>Download Release Build<\/h2>/,$ p' | grep -m1 "Release:" | $SED 's/.*<b>Release: <\/b>\([^<]*\).*/\1/')
+snapshot_version=$(echo "$html" | sed -n '/<h2>Download Snapshot Build<\/h2>/,/<h2>Download Release Build<\/h2>/p' |
+    grep -m1 "Release:" | sed 's/.*<b>Release: <\/b>\([^<]*\).*/\1/')
+release_version=$(echo "$html" | sed -n '/<h2>Download Release Build<\/h2>/,$ p' |
+    grep -m1 "Release:" | sed 's/.*<b>Release: <\/b>\([^<]*\).*/\1/')
+
+[ -z "$snapshot_version" ] && die "Could not extract snapshot version"
+[ -z "$release_version" ] && die "Could not extract release version"
 
 echo "Found versions:"
 echo "  Snapshot: $snapshot_version"
 echo "  Release:  $release_version"
 
-# Function to extract URL for a specific platform
-get_url() {
-    local section="$1"  # "Snapshot" or "Release"
-    local label="$2"    # Platform label to search for
-    local os="$3"       # OS in URL (macos or linux)
-    local arch="$4"     # Architecture in URL (arm64 or amd64)
-    
-    # Get the appropriate section
-    if [ "$section" = "Release" ]; then
-        section_html=$(echo "$html" | $SED -n '/<h2>Download Release Build<\/h2>/,$ p')
+# Get URL for specific tool
+get_tool_url() {
+    section_type=$1
+    platform_label=$2
+    os=$3
+    arch=$4
+    tool=$5
+
+    if [ "$section_type" = "Release" ]; then
+        section_html=$(echo "$html" | sed -n '/<h2>Download Release Build<\/h2>/,$ p')
     else
-        section_html=$(echo "$html" | $SED -n '/<h2>Download Snapshot Build<\/h2>/,/<h2>Download Release Build<\/h2>/p')
+        section_html=$(echo "$html" | sed -n '/<h2>Download Snapshot Build<\/h2>/,/<h2>Download Release Build<\/h2>/p')
     fi
-    
-    # Find the URL by looking for the platform label and then the ffmpeg.zip link
-    # Use more context lines to catch zip files that appear later
-    url=$(echo "$section_html" | grep -B30 -A50 "$label" | grep "/${os}/${arch}/.*ffmpeg\.zip\"" | head -1 | $SED 's/.*href="\([^"]*\)".*/\1/')
-    
+
+    # Debug output
+    # echo "DEBUG: Looking for '$platform_label' in $os/$arch for $tool" >&2
+
+    # Find URL by platform label and tool
+    # Use fixed string matching for labels with spaces
+    url=$(echo "$section_html" | grep -F -B30 -A100 "$platform_label" |
+          tr '\n' ' ' |
+          grep -o "href=\"[^\"]*/${os}/${arch}/[^\"]*${tool}\\.zip\"" |
+          head -1 | sed 's/.*href="\([^"]*\)".*/\1/')
+
     echo "$url"
 }
 
-# Get SHA256 from website
+# Get SHA256 for URL
 get_sha256() {
-    local url="$1"
+    url=$1
     if [ -n "$url" ]; then
         hash=$(curl -s "${BASE_URL}${url}.sha256" 2>/dev/null | awk '{print $1}')
+        if [ -z "$hash" ]; then
+            echo "WARNING: Could not fetch SHA256 for $url" >&2
+        fi
         echo "$hash"
     fi
 }
 
-# Get URL for specific tool (ffmpeg, ffprobe, ffplay)
-get_tool_url() {
-    local section="$1"  # "Snapshot" or "Release"
-    local label="$2"    # Platform label to search for
-    local os="$3"       # OS in URL (macos or linux)
-    local arch="$4"     # Architecture in URL (arm64 or amd64)
-    local tool="$5"     # Tool name (ffmpeg, ffprobe, ffplay)
-    
-    # Get the appropriate section
-    if [ "$section" = "Release" ]; then
-        section_html=$(echo "$html" | $SED -n '/<h2>Download Release Build<\/h2>/,$ p')
-    else
-        section_html=$(echo "$html" | $SED -n '/<h2>Download Snapshot Build<\/h2>/,/<h2>Download Release Build<\/h2>/p')
-    fi
-    
-    # Find the URL by looking for the platform label and then the tool zip link
-    # Use tr to join lines, then extract the href
-    url=$(echo "$section_html" | grep -B30 -A100 "$label" | tr '\n' ' ' | grep -o "href=\"[^\"]*/${os}/${arch}/[^\"]*${tool}\\.zip\"" | head -1 | $SED 's/.*href="\([^"]*\)".*/\1/')
-    
-    echo "$url"
-}
-
 # Update formula file
 update_formula() {
-    local file="$1"
-    local type="$2"  # "release" or "snapshot"
-    local new_version="$3"
-    
+    file=$1
+    build_type=$2  # "Release" or "Snapshot"
+    new_version=$3
+
+    [ ! -f "$file" ] && die "Formula file not found: $file"
+
     # Get current version
-    current_version=$(grep 'version "' "$file" | $SED 's/.*version "\([^"]*\)".*/\1/')
-    
-    # Check if update needed (version change or empty URLs)
+    current_version=$(grep 'version "' "$file" | sed 's/.*version "\([^"]*\)".*/\1/')
+
+    # Check if update needed
     urls_empty=$(grep -c 'url ""' "$file" || true)
     if [ -z "$current_version" ] || [ "$new_version" != "$current_version" ] || [ "$urls_empty" -gt 0 ]; then
         echo "Updating $file: '$current_version' -> '$new_version'"
-        
-        # Get URLs for each platform
-        if [ "$type" = "release" ]; then
-            # FFmpeg URLs
-            macos_arm_url=$(get_url "Release" "Apple Silicon" "macos" "arm64")
-            macos_intel_url=$(get_url "Release" "Intel" "macos" "amd64")
-            linux_arm_url=$(get_url "Release" "arm64v8" "linux" "arm64")
-            linux_intel_url=$(get_url "Release" "Linux (amd64)" "linux" "amd64")
-            
-            # FFprobe URLs
-            macos_arm_ffprobe_url=$(get_tool_url "Release" "Apple Silicon" "macos" "arm64" "ffprobe")
-            macos_intel_ffprobe_url=$(get_tool_url "Release" "Intel" "macos" "amd64" "ffprobe")
-            linux_arm_ffprobe_url=$(get_tool_url "Release" "arm64v8" "linux" "arm64" "ffprobe")
-            linux_intel_ffprobe_url=$(get_tool_url "Release" "Linux (amd64)" "linux" "amd64" "ffprobe")
-            
-            # FFplay URLs
-            macos_arm_ffplay_url=$(get_tool_url "Release" "Apple Silicon" "macos" "arm64" "ffplay")
-            macos_intel_ffplay_url=$(get_tool_url "Release" "Intel" "macos" "amd64" "ffplay")
-            linux_arm_ffplay_url=$(get_tool_url "Release" "arm64v8" "linux" "arm64" "ffplay")
-            linux_intel_ffplay_url=$(get_tool_url "Release" "Linux (amd64)" "linux" "amd64" "ffplay")
-        else
-            # FFmpeg URLs
-            macos_arm_url=$(get_url "Snapshot" "Apple Silicon" "macos" "arm64")
-            macos_intel_url=$(get_url "Snapshot" "Intel" "macos" "amd64")
-            linux_arm_url=$(get_url "Snapshot" "arm64v8" "linux" "arm64")
-            linux_intel_url=$(get_url "Snapshot" "Linux (amd64)" "linux" "amd64")
-            
-            # FFprobe URLs
-            macos_arm_ffprobe_url=$(get_tool_url "Snapshot" "Apple Silicon" "macos" "arm64" "ffprobe")
-            macos_intel_ffprobe_url=$(get_tool_url "Snapshot" "Intel" "macos" "amd64" "ffprobe")
-            linux_arm_ffprobe_url=$(get_tool_url "Snapshot" "arm64v8" "linux" "arm64" "ffprobe")
-            linux_intel_ffprobe_url=$(get_tool_url "Snapshot" "Linux (amd64)" "linux" "amd64" "ffprobe")
-            
-            # FFplay URLs
-            macos_arm_ffplay_url=$(get_tool_url "Snapshot" "Apple Silicon" "macos" "arm64" "ffplay")
-            macos_intel_ffplay_url=$(get_tool_url "Snapshot" "Intel" "macos" "amd64" "ffplay")
-            linux_arm_ffplay_url=$(get_tool_url "Snapshot" "arm64v8" "linux" "arm64" "ffplay")
-            linux_intel_ffplay_url=$(get_tool_url "Snapshot" "Linux (amd64)" "linux" "amd64" "ffplay")
-        fi
-        
-        # Debug output
-        if [ -z "$macos_arm_url" ] && [ -z "$macos_intel_url" ] && [ -z "$linux_arm_url" ] && [ -z "$linux_intel_url" ]; then
-            echo "  WARNING: No URLs found for $type build"
-        fi
-        
-        # Convert to full URLs
-        [ -n "$macos_arm_url" ] && macos_arm_full="${BASE_URL}${macos_arm_url}" || macos_arm_full=""
-        [ -n "$macos_intel_url" ] && macos_intel_full="${BASE_URL}${macos_intel_url}" || macos_intel_full=""
-        [ -n "$linux_arm_url" ] && linux_arm_full="${BASE_URL}${linux_arm_url}" || linux_arm_full=""
-        [ -n "$linux_intel_url" ] && linux_intel_full="${BASE_URL}${linux_intel_url}" || linux_intel_full=""
-        
-        # Convert ffprobe URLs to full URLs
-        [ -n "$macos_arm_ffprobe_url" ] && macos_arm_ffprobe_full="${BASE_URL}${macos_arm_ffprobe_url}" || macos_arm_ffprobe_full=""
-        [ -n "$macos_intel_ffprobe_url" ] && macos_intel_ffprobe_full="${BASE_URL}${macos_intel_ffprobe_url}" || macos_intel_ffprobe_full=""
-        [ -n "$linux_arm_ffprobe_url" ] && linux_arm_ffprobe_full="${BASE_URL}${linux_arm_ffprobe_url}" || linux_arm_ffprobe_full=""
-        [ -n "$linux_intel_ffprobe_url" ] && linux_intel_ffprobe_full="${BASE_URL}${linux_intel_ffprobe_url}" || linux_intel_ffprobe_full=""
-        
-        # Convert ffplay URLs to full URLs
-        [ -n "$macos_arm_ffplay_url" ] && macos_arm_ffplay_full="${BASE_URL}${macos_arm_ffplay_url}" || macos_arm_ffplay_full=""
-        [ -n "$macos_intel_ffplay_url" ] && macos_intel_ffplay_full="${BASE_URL}${macos_intel_ffplay_url}" || macos_intel_ffplay_full=""
-        [ -n "$linux_arm_ffplay_url" ] && linux_arm_ffplay_full="${BASE_URL}${linux_arm_ffplay_url}" || linux_arm_ffplay_full=""
-        [ -n "$linux_intel_ffplay_url" ] && linux_intel_ffplay_full="${BASE_URL}${linux_intel_ffplay_url}" || linux_intel_ffplay_full=""
-        
-        # Get SHA256 hashes
-        echo "  Fetching SHA256 hashes..."
-        macos_arm_hash=$(get_sha256 "$macos_arm_url")
-        macos_intel_hash=$(get_sha256 "$macos_intel_url")
-        linux_arm_hash=$(get_sha256 "$linux_arm_url")
-        linux_intel_hash=$(get_sha256 "$linux_intel_url")
-        
-        # Get ffprobe SHA256 hashes
-        macos_arm_ffprobe_hash=$(get_sha256 "$macos_arm_ffprobe_url")
-        macos_intel_ffprobe_hash=$(get_sha256 "$macos_intel_ffprobe_url")
-        linux_arm_ffprobe_hash=$(get_sha256 "$linux_arm_ffprobe_url")
-        linux_intel_ffprobe_hash=$(get_sha256 "$linux_intel_ffprobe_url")
-        
-        # Get ffplay SHA256 hashes
-        macos_arm_ffplay_hash=$(get_sha256 "$macos_arm_ffplay_url")
-        macos_intel_ffplay_hash=$(get_sha256 "$macos_intel_ffplay_url")
-        linux_arm_ffplay_hash=$(get_sha256 "$linux_arm_ffplay_url")
-        linux_intel_ffplay_hash=$(get_sha256 "$linux_intel_ffplay_url")
-        
+
         # Update version
-        $SED -i "s/version \".*\"/version \"$new_version\"/" "$file"
-        
-        # Get line numbers for all URL/hash pairs (main + resources)
-        url_lines=$(grep -n "url \"" "$file" | cut -d: -f1)
-        sha_lines=$(grep -n "sha256 \"" "$file" | cut -d: -f1)
-        
-        # Convert to arrays - now we have 12 URLs and 12 SHA256s (4 platforms x 3 tools)
+        sed_inplace "s/version \".*\"/version \"$new_version\"/" "$file"
+
+        # Define platforms and their labels
+        # Format: os|arch|label
+        # ORDER MATTERS: Must match the order in the .rb formula files!
+        # macOS ARM, macOS Intel, Linux ARM, Linux Intel
+        platforms="
+macos|arm64|macOS (Apple Silicon/arm64)
+macos|amd64|macOS (Intel/amd64)
+linux|arm64|Linux (arm64v8)
+linux|amd64|Linux (amd64)
+"
+
+        # Get line numbers for URLs and SHA256s
+        url_lines=$(grep -n 'url "' "$file" | cut -d: -f1 | tr '\n' ' ')
+        sha_lines=$(grep -n 'sha256 "' "$file" | cut -d: -f1 | tr '\n' ' ')
+
+        # Convert to arrays (word splitting is intentional here)
+        # shellcheck disable=SC2086
         set -- $url_lines
-        url1=$1; url2=$2; url3=$3; url4=$4; url5=$5; url6=$6; url7=$7; url8=$8; url9=$9
-        shift 9
-        url10=$1; url11=$2; url12=$3
-        
+        url_nums="$*"
+        # shellcheck disable=SC2086
         set -- $sha_lines
-        sha1=$1; sha2=$2; sha3=$3; sha4=$4; sha5=$5; sha6=$6; sha7=$7; sha8=$8; sha9=$9
-        shift 9
-        sha10=$1; sha11=$2; sha12=$3
-        
-        # Update URLs and hashes
-        # macOS ARM64 - ffmpeg
-        $SED -i "${url1}s|url \".*\"|url \"$macos_arm_full\"|" "$file"
-        $SED -i "${sha1}s|sha256 \".*\"|sha256 \"$macos_arm_hash\"|" "$file"
-        
-        # macOS ARM64 - ffprobe resource
-        $SED -i "${url2}s|url \".*\"|url \"$macos_arm_ffprobe_full\"|" "$file"
-        $SED -i "${sha2}s|sha256 \".*\"|sha256 \"$macos_arm_ffprobe_hash\"|" "$file"
-        
-        # macOS ARM64 - ffplay resource
-        $SED -i "${url3}s|url \".*\"|url \"$macos_arm_ffplay_full\"|" "$file"
-        $SED -i "${sha3}s|sha256 \".*\"|sha256 \"$macos_arm_ffplay_hash\"|" "$file"
-        
-        # macOS Intel - ffmpeg
-        $SED -i "${url4}s|url \".*\"|url \"$macos_intel_full\"|" "$file"
-        $SED -i "${sha4}s|sha256 \".*\"|sha256 \"$macos_intel_hash\"|" "$file"
-        
-        # macOS Intel - ffprobe resource
-        $SED -i "${url5}s|url \".*\"|url \"$macos_intel_ffprobe_full\"|" "$file"
-        $SED -i "${sha5}s|sha256 \".*\"|sha256 \"$macos_intel_ffprobe_hash\"|" "$file"
-        
-        # macOS Intel - ffplay resource
-        $SED -i "${url6}s|url \".*\"|url \"$macos_intel_ffplay_full\"|" "$file"
-        $SED -i "${sha6}s|sha256 \".*\"|sha256 \"$macos_intel_ffplay_hash\"|" "$file"
-        
-        # Linux ARM64 - ffmpeg
-        $SED -i "${url7}s|url \".*\"|url \"$linux_arm_full\"|" "$file"
-        $SED -i "${sha7}s|sha256 \".*\"|sha256 \"$linux_arm_hash\"|" "$file"
-        
-        # Linux ARM64 - ffprobe resource
-        $SED -i "${url8}s|url \".*\"|url \"$linux_arm_ffprobe_full\"|" "$file"
-        $SED -i "${sha8}s|sha256 \".*\"|sha256 \"$linux_arm_ffprobe_hash\"|" "$file"
-        
-        # Linux ARM64 - ffplay resource
-        $SED -i "${url9}s|url \".*\"|url \"$linux_arm_ffplay_full\"|" "$file"
-        $SED -i "${sha9}s|sha256 \".*\"|sha256 \"$linux_arm_ffplay_hash\"|" "$file"
-        
-        # Linux Intel - ffmpeg
-        $SED -i "${url10}s|url \".*\"|url \"$linux_intel_full\"|" "$file"
-        $SED -i "${sha10}s|sha256 \".*\"|sha256 \"$linux_intel_hash\"|" "$file"
-        
-        # Linux Intel - ffprobe resource
-        $SED -i "${url11}s|url \".*\"|url \"$linux_intel_ffprobe_full\"|" "$file"
-        $SED -i "${sha11}s|sha256 \".*\"|sha256 \"$linux_intel_ffprobe_hash\"|" "$file"
-        
-        # Linux Intel - ffplay resource
-        $SED -i "${url12}s|url \".*\"|url \"$linux_intel_ffplay_full\"|" "$file"
-        $SED -i "${sha12}s|sha256 \".*\"|sha256 \"$linux_intel_ffplay_hash\"|" "$file"
-        
-        echo "  Updated successfully"
+        sha_nums="$*"
+
+        line_idx=1
+        echo "  Fetching URLs and hashes..."
+        errors=0
+
+        # Process each platform and tool
+        IFS='
+'
+        for platform in $platforms; do
+            [ -z "$platform" ] && continue
+
+            os=$(echo "$platform" | cut -d'|' -f1)
+            arch=$(echo "$platform" | cut -d'|' -f2)
+            label=$(echo "$platform" | cut -d'|' -f3-)
+
+            # Process each tool (ffmpeg, ffprobe, ffplay)
+            for tool in ffmpeg ffprobe ffplay; do
+                # Get URL and hash
+                url=$(get_tool_url "$build_type" "$label" "$os" "$arch" "$tool")
+
+                # Get line numbers for this entry
+                url_line=$(echo "$url_nums" | cut -d' ' -f$line_idx)
+                sha_line=$(echo "$sha_nums" | cut -d' ' -f$line_idx)
+
+                # Update URL and hash
+                if [ -n "$url" ] && [ -n "$url_line" ] && [ "$url_line" -gt 0 ] 2>/dev/null; then
+                    hash=$(get_sha256 "$url")
+                    if [ -z "$hash" ]; then
+                        echo "  ERROR: No SHA256 for $os $arch $tool" >&2
+                        errors=$((errors + 1))
+                    fi
+                    sed_inplace "${url_line}s|url \".*\"|url \"${BASE_URL}${url}\"|" "$file"
+                    [ -n "$sha_line" ] && [ "$sha_line" -gt 0 ] 2>/dev/null && sed_inplace "${sha_line}s|sha256 \".*\"|sha256 \"$hash\"|" "$file"
+                elif [ -n "$url_line" ] && [ "$url_line" -gt 0 ] 2>/dev/null; then
+                    echo "  ERROR: No URL found for $label ($os/$arch) $tool" >&2
+                    errors=$((errors + 1))
+                    sed_inplace "${url_line}s|url \".*\"|url \"\"|" "$file"
+                    [ -n "$sha_line" ] && [ "$sha_line" -gt 0 ] 2>/dev/null && sed_inplace "${sha_line}s|sha256 \".*\"|sha256 \"\"|" "$file"
+                fi
+
+                line_idx=$((line_idx + 1))
+            done
+        done
+        IFS=' '
+
+        if [ $errors -gt 0 ]; then
+            echo "  Updated with $errors errors"
+            return 1
+        else
+            echo "  Updated successfully"
+        fi
     else
         echo "No update needed for $file (version: $current_version)"
     fi
 }
 
 # Update both formulas
-update_formula "Formula/ffmpeg-static.rb" "release" "$release_version"
-update_formula "Formula/ffmpeg-static-snapshot.rb" "snapshot" "$snapshot_version"
+total_errors=0
 
-echo "Done!"
+if ! update_formula "Formula/ffmpeg-static.rb" "Release" "$release_version"; then
+    total_errors=$((total_errors + 1))
+fi
+
+if ! update_formula "Formula/ffmpeg-static-snapshot.rb" "Snapshot" "$snapshot_version"; then
+    total_errors=$((total_errors + 1))
+fi
+
+if [ $total_errors -gt 0 ]; then
+    echo "Completed with errors!"
+    exit 1
+else
+    echo "Done!"
+fi

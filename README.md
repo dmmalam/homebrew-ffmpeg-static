@@ -30,6 +30,19 @@ Daily GitHub Actions:
 Pin a specific version: `brew pin ffmpeg-static`
 Unpin: `brew unpin ffmpeg-static`
 
+## Troubleshooting
+
+### HTTP/2 Errors
+
+If you encounter HTTP/2 stream errors during download:
+```bash
+brew install curl
+export HOMEBREW_FORCE_BREWED_CURL=1
+brew install ffmpeg-static
+```
+
+This forces Homebrew to use its own curl instead of older system curl.
+
 ## Conflicts
 
 Conflicts with homebrew-core's `ffmpeg`. Uninstall it first:
