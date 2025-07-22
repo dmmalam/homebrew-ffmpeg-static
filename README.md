@@ -58,6 +58,30 @@ Snapshot conflicts with versioned, so only install either or.
 See Martins [ffmpeg build site](https://ffmpeg.martin-riedl.de)
 Check features: `ffmpeg -version`
 
+## Testing GitHub Actions Locally
+
+Test workflows locally with [act](https://github.com/nektos/act) and podman:
+
+```bash
+# Test formula installation workflow
+act -j test-bot -W .github/workflows/tests.yml
+
+# Test version update workflow
+act -j check-and-update -W .github/workflows/update-versions.yml
+
+# Test with workflow_dispatch input
+act workflow_dispatch -j check-and-update -W .github/workflows/update-versions.yml --input force_update=true
+
+# Test PR publish workflow
+act pull_request_target -j pr-pull -W .github/workflows/publish.yml
+```
+
+### Workflow Descriptions
+
+- **tests.yml**: Runs formula syntax checks and installation tests across platforms
+- **update-versions.yml**: Checks for new FFmpeg versions daily and creates PRs
+- **publish.yml**: Pulls bottle artifacts from PRs when labeled with "pr-pull"
+
 ## License
 
 MIT License for the tap. FFmpeg and included libraries have their own licenses.
