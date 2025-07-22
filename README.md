@@ -8,7 +8,6 @@ Homebrew tap for [Martin Riedl's static FFmpeg builds](https://ffmpeg.martin-rie
 - Daily automated updates
 - Platforms: macOS (Intel/ARM), Linux (Intel/ARM)
 - Two channels: stable releases and daily snapshots
-- Optional build from source
 
 ## Installation
 
@@ -17,7 +16,6 @@ brew tap dmmalam/ffmpeg-static
 brew install ffmpeg-static              # Stable release
 # Or
 brew install ffmpeg-static-snapshot     # Daily snapshot
-brew install --build-from-source ffmpeg-static  # Build from source
 ```
 
 ## Version Management
