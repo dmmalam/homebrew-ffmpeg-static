@@ -2,7 +2,6 @@
 class FfmpegStatic < Formula
   desc "Static FFmpeg builds from Martin Riedl"
   homepage "https://ffmpeg.martin-riedl.de/"
-  version "7.1.1"
   license "GPL-2.0-or-later"
 
   on_macos do
@@ -19,7 +18,7 @@ class FfmpegStatic < Formula
         url "https://ffmpeg.martin-riedl.de/download/macos/arm64/1741000090_7.1.1/ffplay.zip"
         sha256 "130783f3c40e8fda1e363993ea141c7645894783f1d619e2754ee415fed0e27c"
       end
-    else
+    elsif Hardware::CPU.intel?
       url "https://ffmpeg.martin-riedl.de/download/macos/amd64/1741001873_7.1.1/ffmpeg.zip"
       sha256 "fd05ab8709c015b0a1922c65623beb8cff7f964c1524d060531bbb7b213b4cd2"
 
@@ -49,7 +48,7 @@ class FfmpegStatic < Formula
         url "https://ffmpeg.martin-riedl.de/download/linux/arm64/1740999880_7.1.1/ffplay.zip"
         sha256 "d57b387fa503ff135d2ea0c8ac2366bed20c9845187a4055546a31b418f5cd47"
       end
-    else
+    elsif Hardware::CPU.intel?
       url "https://ffmpeg.martin-riedl.de/download/linux/amd64/1741000776_7.1.1/ffmpeg.zip"
       sha256 "aa1f954f92ab8672009113138943ebb904a3f3d73a6df3c765c968d3039ad257"
 

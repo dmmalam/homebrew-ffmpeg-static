@@ -19,9 +19,17 @@ echo "Resetting formulas to empty state..."
 for formula in Formula/ffmpeg-static.rb Formula/ffmpeg-static-snapshot.rb
 do
   echo "  Resetting ${formula}..."
-  sed_inplace -e 's/version ".*"/version ""/' \
-    -e 's|url ".*"|url ""|g' \
-    -e 's|sha256 ".*"|sha256 ""|g' "${formula}"
+  # Only reset version for snapshot formula
+  if echo "${formula}" | grep -q "snapshot"
+  then
+    sed_inplace -e 's/version ".*"/version ""/' \
+      -e 's|url ".*"|url ""|g' \
+      -e 's|sha256 ".*"|sha256 ""|g' "${formula}"
+  else
+    # Regular formula - no version line
+    sed_inplace -e 's|url ".*"|url ""|g' \
+      -e 's|sha256 ".*"|sha256 ""|g' "${formula}"
+  fi
 done
 
 echo "Done! Formulas have been reset."
@@ -31,8 +39,7 @@ echo "=============="
 for formula in Formula/ffmpeg-static.rb Formula/ffmpeg-static-snapshot.rb
 do
   name=$(basename "${formula}" .rb)
-  version=$(grep 'version "' "${formula}" | sed 's/.*version "\([^"]*\)".*/\1/')
-  echo "${name} version: ${version}"
+  echo "${name}: reset complete"
 done
 echo ""
 echo "Run ./scripts/update_formulas.sh to populate them again."

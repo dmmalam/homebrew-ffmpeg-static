@@ -53,16 +53,26 @@ update_formula() {
     exit 1
   }
 
-  current=$(grep 'version "' "${file}" | sed 's/.*version "\([^"]*\)".*/\1/')
-
-  if [ "${version}" = "${current}" ] && ! grep -q 'url ""' "${file}"
+  # Check current version for snapshot formula (which needs explicit version)
+  if echo "${file}" | grep -q "snapshot"
   then
-    echo "No update needed for ${file} (version: ${current})"
-    return 0
+    current=$(grep 'version "' "${file}" | sed 's/.*version "\([^"]*\)".*/\1/')
+    if [ "${version}" = "${current}" ] && ! grep -q 'url ""' "${file}"
+    then
+      echo "No update needed for ${file} (version: ${current})"
+      return 0
+    fi
+    echo "Updating ${file}: '${current}' -> '${version}'"
+    sed_inplace "s/version \".*\"/version \"${version}\"/" "${file}"
+  else
+    # Regular formula - no version line needed (Homebrew auto-detects)
+    if ! grep -q 'url ""' "${file}"
+    then
+      echo "No update needed for ${file}"
+      return 0
+    fi
+    echo "Updating ${file} with version: ${version}"
   fi
-
-  echo "Updating ${file}: '${current}' -> '${version}'"
-  sed_inplace "s/version \".*\"/version \"${version}\"/" "${file}"
 
   # Extract section HTML
   if [ "${type}" = "Release" ]
