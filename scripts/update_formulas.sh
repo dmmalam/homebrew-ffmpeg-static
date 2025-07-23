@@ -1,6 +1,6 @@
 #!/bin/sh
 # © 2025 D MALAM
-# shellcheck disable=SC2292
+# shellcheck disable=SC2292,SC2312,SC2310
 set -e
 
 BASE_URL="https://ffmpeg.martin-riedl.de"

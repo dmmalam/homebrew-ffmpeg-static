@@ -1,6 +1,6 @@
 #!/bin/sh
 # © 2025 D MALAM
-# shellcheck disable=SC2292
+# shellcheck disable=SC2292,SC2312
 set -e
 
 # Portable sed in-place editing
