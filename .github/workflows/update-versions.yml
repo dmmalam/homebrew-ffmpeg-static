@@ -20,6 +20,10 @@ permissions:
 jobs:
   check-and-update:
     runs-on: ubuntu-latest
+    outputs:
+      updated: ${{ steps.check_versions.outputs.updated }}
+      stable_version: ${{ steps.check_versions.outputs.stable_version }}
+      snapshot_version: ${{ steps.check_versions.outputs.snapshot_version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -34,17 +38,18 @@ jobs:
           
           # Check if any files changed
           if git diff --quiet; then
-            echo "updated=false" >> $GITHUB_OUTPUT
+            echo "updated=false" >> "$GITHUB_OUTPUT"
           else
-            echo "updated=true" >> $GITHUB_OUTPUT
+            echo "updated=true" >> "$GITHUB_OUTPUT"
             # Extract versions from formulas
             stable_version=$(grep 'version "' Formula/ffmpeg-static.rb | sed 's/.*version "\([^"]*\)".*/\1/')
             snapshot_version=$(grep 'version "' Formula/ffmpeg-static-snapshot.rb | sed 's/.*version "\([^"]*\)".*/\1/')
-            echo "stable_version=$stable_version" >> $GITHUB_OUTPUT
-            echo "snapshot_version=$snapshot_version" >> $GITHUB_OUTPUT
+            echo "stable_version=$stable_version" >> "$GITHUB_OUTPUT"
+            echo "snapshot_version=$snapshot_version" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Create Pull Request
+        id: create-pr
         if: steps.check_versions.outputs.updated == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
@@ -111,7 +116,7 @@ jobs:
         run: |
           # Add the tap locally
           brew tap-new --no-git dmmalam/ffmpeg-static
-          cp -r Formula/* $(brew --repository)/Library/Taps/dmmalam/homebrew-ffmpeg-static/Formula/
+          cp -r Formula/* "$(brew --repository)/Library/Taps/dmmalam/homebrew-ffmpeg-static/Formula/"
           
           # Test installation
           brew install --verbose dmmalam/ffmpeg-static/${{ matrix.formula }}
