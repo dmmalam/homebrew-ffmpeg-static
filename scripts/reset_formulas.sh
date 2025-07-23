@@ -5,7 +5,8 @@ set -e
 
 # Portable sed in-place editing
 sed_inplace() {
-  if [ "$(uname)" = "Darwin" ]; then
+  if [ "$(uname)" = "Darwin" ]
+  then
     sed -i '' "$@"
   else
     sed -i "$@"
@@ -20,10 +21,12 @@ do
   echo "  Resetting ${formula}..."
   # Only reset version for snapshot formula
   is_snapshot=0
-  if echo "${formula}" | grep -q "snapshot"; then
+  if echo "${formula}" | grep -q "snapshot"
+  then
     is_snapshot=1
   fi
-  if [ "${is_snapshot}" -eq 1 ]; then
+  if [ "${is_snapshot}" -eq 1 ]
+  then
     sed_inplace -e 's/version ".*"/version ""/' \
       -e 's|url ".*"|url ""|g' \
       -e 's|sha256 ".*"|sha256 ""|g' "${formula}"
