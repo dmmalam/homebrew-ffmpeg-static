@@ -7,8 +7,7 @@ BASE_URL="https://ffmpeg.martin-riedl.de"
 
 # Portable sed in-place editing
 sed_inplace() {
-  if [ "$(uname)" = "Darwin" ]
-  then
+  if [ "$(uname)" = "Darwin" ]; then
     sed -i '' "$@"
   else
     sed -i "$@"
@@ -17,10 +16,10 @@ sed_inplace() {
 
 # Fetch HTML
 echo "Fetching website HTML..."
-html=$(curl -s "${BASE_URL}") || {
+if ! html=$(curl -s "${BASE_URL}"); then
   echo "ERROR: Failed to fetch website" >&2
   exit 1
-}
+fi
 
 # Extract versions
 echo "Extracting versions..."
@@ -29,14 +28,14 @@ snapshot_version=$(echo "${html}" | sed -n '/<h2>Download Snapshot Build<\/h2>/,
 release_version=$(echo "${html}" | sed -n '/<h2>Download Release Build<\/h2>/,$ p' |
   grep -m1 "Release:" | sed 's/.*<b>Release: <\/b>\([^<]*\).*/\1/')
 
-[ -z "${snapshot_version}" ] && {
+if [ -z "${snapshot_version}" ]; then
   echo "ERROR: Could not extract snapshot version" >&2
   exit 1
-}
-[ -z "${release_version}" ] && {
+fi
+if [ -z "${release_version}" ]; then
   echo "ERROR: Could not extract release version" >&2
   exit 1
-}
+fi
 
 echo "Found versions:"
 echo "  Snapshot: ${snapshot_version}"
@@ -48,17 +47,19 @@ update_formula() {
   type=$2
   version=$3
 
-  [ ! -f "${file}" ] && {
+  if [ ! -f "${file}" ]; then
     echo "ERROR: File not found: ${file}" >&2
     exit 1
-  }
+  fi
 
   # Check current version for snapshot formula (which needs explicit version)
-  if echo "${file}" | grep -q "snapshot"
-  then
+  is_snapshot=0
+  if echo "${file}" | grep -q "snapshot"; then
+    is_snapshot=1
+  fi
+  if [ "${is_snapshot}" -eq 1 ]; then
     current=$(grep 'version "' "${file}" | sed 's/.*version "\([^"]*\)".*/\1/')
-    if [ "${version}" = "${current}" ] && ! grep -q 'url ""' "${file}"
-    then
+    if [ "${version}" = "${current}" ] && ! grep -q 'url ""' "${file}"; then
       echo "No update needed for ${file} (version: ${current})"
       return 0
     fi
@@ -66,8 +67,7 @@ update_formula() {
     sed_inplace "s/version \".*\"/version \"${version}\"/" "${file}"
   else
     # Regular formula - no version line needed (Homebrew auto-detects)
-    if ! grep -q 'url ""' "${file}"
-    then
+    if ! grep -q 'url ""' "${file}"; then
       echo "No update needed for ${file}"
       return 0
     fi
@@ -75,8 +75,7 @@ update_formula() {
   fi
 
   # Extract section HTML
-  if [ "${type}" = "Release" ]
-  then
+  if [ "${type}" = "Release" ]; then
     section=$(echo "${html}" | sed -n '/<h2>Download Release Build<\/h2>/,$ p')
   else
     section=$(echo "${html}" | sed -n '/<h2>Download Snapshot Build<\/h2>/,/<h2>Download Release Build<\/h2>/p')
@@ -108,11 +107,13 @@ update_formula() {
         grep -o "href=\"[^\"]*/${os}/${arch}/[^\"]*${tool}\.zip\"" |
         head -1 | sed 's/.*href="\([^"]*\)".*/\1/')
 
-      if [ -n "${url}" ]
-      then
-        hash=$(curl -s "${BASE_URL}${url}.sha256" 2>/dev/null | head -1 | awk '{print $1}' | tr -d '\n')
-        if [ -z "${hash}" ]
-        then
+      if [ -n "${url}" ]; then
+        hash_response=$(curl -s "${BASE_URL}${url}.sha256" 2>/dev/null || true)
+        hash=""
+        if [ -n "${hash_response}" ]; then
+          hash=$(echo "${hash_response}" | head -1 | awk '{print $1}' | tr -d '\n')
+        fi
+        if [ -z "${hash}" ]; then
           echo "  ERROR: No SHA256 for ${url}" >&2
           errors=$((errors + 1))
         else
@@ -127,21 +128,25 @@ update_formula() {
     done
   done
 
-  [ "${errors}" -gt 0 ] && {
+  if [ "${errors}" -gt 0 ]; then
     echo "  Updated with ${errors} errors"
     return 1
-  }
+  fi
   echo "  Updated successfully"
   return 0
 }
 
 # Update both formulas
 errors=0
-update_formula "Formula/ffmpeg-static.rb" "Release" "${release_version}" || errors=$((errors + 1))
-update_formula "Formula/ffmpeg-static-snapshot.rb" "Snapshot" "${snapshot_version}" || errors=$((errors + 1))
+if ! update_formula "Formula/ffmpeg-static.rb" "Release" "${release_version}"; then
+  errors=$((errors + 1))
+fi
+if ! update_formula "Formula/ffmpeg-static-snapshot.rb" "Snapshot" "${snapshot_version}"; then
+  errors=$((errors + 1))
+fi
 
-[ "${errors}" -gt 0 ] && {
+if [ "${errors}" -gt 0 ]; then
   echo "Completed with errors!"
   exit 1
-}
+fi
 echo "Done!"
