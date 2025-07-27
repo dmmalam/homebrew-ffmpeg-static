@@ -2,65 +2,65 @@
 class FfmpegStaticSnapshot < Formula
   desc "Static FFmpeg snapshot builds from Martin Riedl (daily builds)"
   homepage "https://ffmpeg.martin-riedl.de/"
-  version "N-120333-gf944a70fcc"
+  version "N-120362-g45810daf4d"
   license "GPL-2.0-or-later"
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://ffmpeg.martin-riedl.de/download/macos/arm64/1753118211_N-120333-gf944a70fcc/ffmpeg.zip"
-      sha256 "132d9802acc3d28ae0afe13a62f720597946961faa13a438c386d6ea4e4c60ad"
+      url "https://ffmpeg.martin-riedl.de/download/macos/arm64/1753463856_N-120362-g45810daf4d/ffmpeg.zip"
+      sha256 "68a9a84bcdb02dcca16848c38ce858645ef695b682a04619167f907d3572ae03"
 
       resource "ffprobe" do
-        url "https://ffmpeg.martin-riedl.de/download/macos/arm64/1753118211_N-120333-gf944a70fcc/ffprobe.zip"
-        sha256 "312c4e750d8ee049a216d5bd7533a4840d09c36bce27386be05dc7be5711ba7e"
+        url "https://ffmpeg.martin-riedl.de/download/macos/arm64/1753463856_N-120362-g45810daf4d/ffprobe.zip"
+        sha256 "29865b40c950a677a391d398fdf02a21a227c5afbd6398358dda186dbbf5a38e"
       end
 
       resource "ffplay" do
-        url "https://ffmpeg.martin-riedl.de/download/macos/arm64/1753118211_N-120333-gf944a70fcc/ffplay.zip"
-        sha256 "ce3808aac1ed2728035552b58583988ed8149c0f5407886e3265e6c83d39eaab"
+        url "https://ffmpeg.martin-riedl.de/download/macos/arm64/1753463856_N-120362-g45810daf4d/ffplay.zip"
+        sha256 "85929ea773302671ab49be2e1b2db26570a7e0afa4b0b44aac412d83286204fc"
       end
     elsif Hardware::CPU.intel?
-      url "https://ffmpeg.martin-riedl.de/download/macos/amd64/1753124454_N-120333-gf944a70fcc/ffmpeg.zip"
-      sha256 "f196a3449b3f3f05bc3ec5024907887b404c569eec44ac68b04c9dbcc415c7b7"
+      url "https://ffmpeg.martin-riedl.de/download/macos/amd64/1753470000_N-120362-g45810daf4d/ffmpeg.zip"
+      sha256 "94a024ae2826e5afb006828b2bbee06095d18bf949dda782a91f54e0a1019957"
 
       resource "ffprobe" do
-        url "https://ffmpeg.martin-riedl.de/download/macos/amd64/1753124454_N-120333-gf944a70fcc/ffprobe.zip"
-        sha256 "a82d31e52c424aa433a126f1cce2642855259429225a4a6af8ee9def7828fdfb"
+        url "https://ffmpeg.martin-riedl.de/download/macos/amd64/1753470000_N-120362-g45810daf4d/ffprobe.zip"
+        sha256 "74eff0101b56a14fa7d4c19bdae180db0bab591600d0ef18a653238d24c34df5"
       end
 
       resource "ffplay" do
-        url "https://ffmpeg.martin-riedl.de/download/macos/amd64/1753124454_N-120333-gf944a70fcc/ffplay.zip"
-        sha256 "3a37fc74ecf9afedc5f729126f54b25a1f179025a3eca08793c70965d84d77ff"
+        url "https://ffmpeg.martin-riedl.de/download/macos/amd64/1753470000_N-120362-g45810daf4d/ffplay.zip"
+        sha256 "89b9f3bddc9c7700eb87f44c09225568373f35e1354b9074c6b3ab3efe606370"
       end
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
-      url "https://ffmpeg.martin-riedl.de/download/linux/arm64/1753117677_N-120333-gf944a70fcc/ffmpeg.zip"
-      sha256 "c564907b996b9cd5b688709a18c7c2a6e14fa42217d2dacd028b2d2c473828a3"
+      url "https://ffmpeg.martin-riedl.de/download/linux/arm64/1753463227_N-120362-g45810daf4d/ffmpeg.zip"
+      sha256 "9f60a4c013926a03ddb942e788b2c158d9e0acc73234627b2489ecc94a5b4fcb"
 
       resource "ffprobe" do
-        url "https://ffmpeg.martin-riedl.de/download/linux/arm64/1753117677_N-120333-gf944a70fcc/ffprobe.zip"
-        sha256 "71f852485884b6bc9ec02a59632ceb238eebaa4278e28e69dc50492acbcdaf4d"
+        url "https://ffmpeg.martin-riedl.de/download/linux/arm64/1753463227_N-120362-g45810daf4d/ffprobe.zip"
+        sha256 "16a0e1b99c5c061cfef7359a5b099ca31ae78cd89d77b264f94cde2b8489f866"
       end
 
       resource "ffplay" do
-        url "https://ffmpeg.martin-riedl.de/download/linux/arm64/1753117677_N-120333-gf944a70fcc/ffplay.zip"
-        sha256 "d602912743615f726ec7c68a9dbdcf825d7c04e7bf4ef983be6e4358c06f41c6"
+        url "https://ffmpeg.martin-riedl.de/download/linux/arm64/1753463227_N-120362-g45810daf4d/ffplay.zip"
+        sha256 "ea3375704d7c423ac8936d90e645553b2fc5c714aa7d29fd33c95fa38ae9b211"
       end
     elsif Hardware::CPU.intel?
-      url "https://ffmpeg.martin-riedl.de/download/linux/amd64/1753118773_N-120333-gf944a70fcc/ffmpeg.zip"
-      sha256 "1065eed63a9c7c52b1ed96048129021417053ceeabcd21175249dae162267dc0"
+      url "https://ffmpeg.martin-riedl.de/download/linux/amd64/1753464568_N-120362-g45810daf4d/ffmpeg.zip"
+      sha256 "dda44dc98e970a0b4e0bc9ba71ecba2c5840eb52e4d8eaa0b5b5d96a7c127ba8"
 
       resource "ffprobe" do
-        url "https://ffmpeg.martin-riedl.de/download/linux/amd64/1753118773_N-120333-gf944a70fcc/ffprobe.zip"
-        sha256 "7866eb6e0c22a59d2a6cf474333ccc04c758ea519daf50903e0bba28c7fe8072"
+        url "https://ffmpeg.martin-riedl.de/download/linux/amd64/1753464568_N-120362-g45810daf4d/ffprobe.zip"
+        sha256 "470cc8c437ec88f80f85c09f64b8b879a33f042572ca1e03be4c30bf0c4a674f"
       end
 
       resource "ffplay" do
-        url "https://ffmpeg.martin-riedl.de/download/linux/amd64/1753118773_N-120333-gf944a70fcc/ffplay.zip"
-        sha256 "debf66fca3a4e6f5a7cbc245e7d5943c6a44dacdb581f0e12cb408595f20743a"
+        url "https://ffmpeg.martin-riedl.de/download/linux/amd64/1753464568_N-120362-g45810daf4d/ffplay.zip"
+        sha256 "58471432279c15df471f4b3724f35c451496871419efe682ed9b53ed87c756fe"
       end
     end
   end
